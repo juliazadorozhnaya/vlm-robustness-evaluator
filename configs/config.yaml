@@ -1,0 +1,124 @@
+# === МОДЕЛИ ===
+models:
+  - name: llava
+    enabled: true
+    type: llava               # тип модели для hub (llava / minigpt / ...)
+    path: liuhaotian/llava-v1.5-7b  # huggingface repo
+    device: cuda:0
+
+# === АТАКИ ===
+attacks:
+  - name: specific_string
+    enabled: false
+    loss_type: cross_entropy
+    target_string: "download now"
+    patch_size: [50, 50]
+    optimizer: apgd
+    model: llava
+
+  - name: untargeted_attack
+    enabled: false
+    loss_type: cross_entropy
+    attack_scope: full_image
+    optimizer: pgd
+    model: minigpt
+
+  - name: targeted_attack
+    enabled: false
+    loss_type: cross_entropy
+    optimizer: pgd
+    model: minigpt
+
+  - name: rec_targeted_exclusive
+    enabled: false
+    loss_type: cross_entropy
+    optimizer: apgd
+    model: minigpt
+
+# === МЕТОДЫ ОПТИМИЗАЦИИ ===
+optimizers:
+  - name: pgd
+    epsilon: 0.03
+    step_size: 0.01
+    max_steps: 100
+    projection: linf        # linf / l2
+    random_start: true
+    scheduler: none
+
+  - name: apgd
+    epsilon: 0.03
+    step_size: 0.01
+    max_steps: 100
+    projection: l2
+    norm_decay: 0.75        # уменьшение шага при стагнации
+
+  - name: cw
+    confidence: 20          # степень уверенности
+    c_init: 0.1             # начальное значение параметра C
+    c_steps: 5              # шагов изменения C
+    binary_search_steps: 10 # для бинарного поиска по C
+    max_steps: 1000
+    learning_rate: 0.01
+    loss_type: logits       # logits / cross_entropy
+    targeted: true
+
+# === ЗАДАЧИ ===
+tasks:
+  - name: image_captioning
+    dataset: ms_coco
+    max_samples: 300
+    metrics: [ cider, bertscore, clipscore, levenshtein ]
+    prompt_template: "" # можно задать шаблон, если используется
+    task_type: generation
+    download: true
+
+  - name: referring_expression
+    dataset: refcoco
+    max_samples: 300
+    metrics: [ iou, clipscore ]
+    prompt_template: "Locate: {expression}" # например
+    task_type: localization
+    download: true
+
+  - name: visual_commonsense_reasoning
+    dataset: scienceqa
+    max_samples: 300
+    metrics: [ accuracy, asr, levenshtein, clipscore ]
+    prompt_template: "Q: {question} A:"
+    task_type: classification
+    download: true
+
+  - name: vqa
+    dataset: vqav2
+    max_samples: 300
+    metrics: [ accuracy, asr, levenshtein, clipscore ]
+    prompt_template: "Question: {question} Answer:"
+    task_type: classification
+    download: true
+
+# === ПАРАМЕТРЫ ОБРАБОТКИ ===
+batch_size: 16         # размер батча при атаке и инференсе
+device: cuda:0         # основное устройство
+seed: 42               # random / torch seed
+num_workers: 4         # для DataLoader
+
+precision: fp16        # optional: fp32 / fp16 / bf16
+pin_memory: true       # оптимизация загрузки данных
+
+
+# === ПАРАМЕТРЫ ВЫВОДА ===
+output:
+  enabled: true               # основной флаг (если отключен — ничего не сохраняем)
+
+  save_images: true           # сохранять атакованные изображения
+  save_logits: false          # сохранять логиты модели
+  save_predictions: true      # сохранять ответы модели
+  save_metrics: true          # сохранять вычисленные метрики
+  save_config_snapshot: true  # сохранить копию конфига вместе с запуском
+
+  output_dir: outputs/benchmark_run/   # корневая директория
+  export_format: [csv, json]           # форматы сохранения отчётов
+  overwrite: false                     # перезаписывать ли старые
+
+  log_level: info                      # уровень логирования
+  verbose_console: true                # печатать ли подробности во время выполнения
